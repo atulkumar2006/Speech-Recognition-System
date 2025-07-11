@@ -3,6 +3,7 @@ AI-Powered Voice Transcriber
  This is a lightweight yet efficient desktop tool that converts spoken audio into readable text. Built
  using Python's Tkinter for GUI and AI-powered transcription for accuracy, this app is perfect for
  students and professionals who need fast and simple audio transcription.
+ 
  Key Features
  - Upload and transcribe WAV audio files
  - Simple and intuitive user interface
@@ -14,6 +15,7 @@ AI-Powered Voice Transcriber
  - Custom utils module for audio preprocessing and transcription (e.g., Whisper, Vosk)
   
  Developed By
+ 
  Atul Kumar
 B.Tech (CSE), Teerthanker Mahaveer University
 
