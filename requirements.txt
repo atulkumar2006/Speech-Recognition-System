@@ -1,0 +1,8 @@
+tk
+torch
+transformers
+librosa
+soundfile
+numpy
+scipy
+pydub
