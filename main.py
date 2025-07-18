@@ -1,88 +1,72 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox
-import os
-from utils import preprocess_audio, transcribe
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+import torch
+import soundfile as sf
 
-audio_file_path = None  # Global variable to store file path
+class SpeechToTextApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Speech to Text Transcription")
+        self.root.geometry("500x300")
+        self.audio_path = None
 
-def browse_audio():
-    global audio_file_path
-    audio_file_path = filedialog.askopenfilename(
-        title="Choose Audio File",
-        filetypes=(("WAV Audio", ".wav"), ("All Files", ".*"))
-    )
-    if audio_file_path:
-        file_label = os.path.basename(audio_file_path)
-        status_display.config(text=f"✔ Selected: {file_label}", fg="#0066cc")
+        self.label = tk.Label(root, text="Upload a WAV file for transcription", font=("Arial", 14))
+        self.label.pack(pady=20)
 
-        output_text.config(state='normal')
-        output_text.delete("1.0", tk.END)
-        output_text.config(state='disabled')
+        self.upload_btn = tk.Button(root, text="📁 Upload Audio", command=self.upload_audio, width=20, height=2)
+        self.upload_btn.pack()
 
-def convert_audio_to_text():
-    global audio_file_path
-    if not audio_file_path:
-        messagebox.showwarning("File Missing", "Please select a WAV file to proceed.")
-        return
-    try:
-        status_display.config(text="🔁 Processing...", fg="#555")
-        root.update()
+        self.transcribe_btn = tk.Button(root, text="📝 Transcribe", command=self.run_transcription, width=20, height=2)
+        self.transcribe_btn.pack(pady=10)
 
-        prepared_file = preprocess_audio(audio_file_path)
-        transcription_result = transcribe(prepared_file)
+        self.output_text = tk.Text(root, height=5, wrap='word')
+        self.output_text.pack(padx=10, pady=10)
 
-        output_text.config(state='normal')
-        output_text.delete("1.0", tk.END)
-        output_text.insert(tk.END, transcription_result)
-        output_text.config(state='disabled')
+    def upload_audio(self):
+        filename = filedialog.askopenfilename(
+            filetypes=[("WAV files", "*.wav")],
+            title="Choose a .wav file"
+        )
+        if filename:
+            self.audio_path = filename
+            print("File uploaded:", self.audio_path)
+            messagebox.showinfo("Uploaded", f"Selected File:\n{filename}")
 
-        status_display.config(text="✅ Transcription Done.", fg="green")
-    except Exception as err:
-        messagebox.showerror("Transcription Error", str(err))
-        status_display.config(text="❌ Error occurred during transcription.", fg="red")
+    def run_transcription(self):
+        if not self.audio_path:
+            messagebox.showerror("Error", "Please upload a WAV file first.")
+            return
 
-# ---------- GUI Configuration ----------
-root = tk.Tk()
-root.title("🧠 Voice to Text AI Tool")
-root.geometry("720x540")
-root.configure(bg="#f0f0f0")
+        try:
+            text = transcribe_audio(self.audio_path)
+            if text.strip():
+                self.output_text.delete(1.0, tk.END)
+                self.output_text.insert(tk.END, f"🔊 Transcription:\n{text}")
+                print("🔊 Transcription:", text)
+            else:
+                self.output_text.insert(tk.END, "❌ No speech detected or transcription failed.")
+                print("❌ Empty transcription.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Something went wrong:\n{str(e)}")
+            print("❌ Error:", e)
 
-# Heading
-heading = tk.Label(root, text="AI-Powered Voice Transcriber", font=("Calibri", 20, "bold"), bg="#f0f0f0", fg="#222")
-heading.pack(pady=(25, 10))
+def transcribe_audio(audio_path):
+    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+    model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
 
-# Content Frame
-container = tk.Frame(root, bg="#f0f0f0")
-container.pack(padx=25, pady=10, fill="both", expand=True)
+    speech, rate = sf.read(audio_path)
+    if rate != 16000:
+        raise ValueError("Audio must be at 16kHz sampling rate.")
 
-# Upload Button
-upload_button = tk.Button(
-    container, text="🎵 Select WAV File", command=browse_audio,
-    font=("Calibri", 13), bg="#1976D2", fg="white",
-    activebackground="#1565C0", padx=12, pady=6, relief="flat", cursor="hand2"
-)
-upload_button.pack(pady=6)
+    input_values = processor(speech, return_tensors="pt", sampling_rate=rate).input_values
+    with torch.no_grad():
+        logits = model(input_values).logits
+    predicted_ids = torch.argmax(logits, dim=-1)
+    transcription = processor.batch_decode(predicted_ids)[0]
+    return transcription
 
-# Transcription Button
-transcribe_button = tk.Button(
-    container, text="📄 Generate Text", command=convert_audio_to_text,
-    font=("Calibri", 13), bg="#388E3C", fg="white",
-    activebackground="#2E7D32", padx=12, pady=6, relief="flat", cursor="hand2"
-)
-transcribe_button.pack(pady=6)
-
-# Output Text Box
-output_text = tk.Text(container, wrap="word", height=12, font=("Calibri", 12), padx=12, pady=12, relief="sunken", bd=1)
-output_text.pack(fill="both", expand=True, padx=10, pady=10)
-output_text.config(state='disabled')
-
-# Status Area
-status_display = tk.Label(root, text="", font=("Calibri", 10), bg="#f0f0f0", fg="blue")
-status_display.pack(pady=5)
-
-# Credits
-footer_note = tk.Label(root, text="Developed by Atul Kumar", font=("Calibri", 9), bg="#f0f0f0", fg="gray")
-footer_note.pack(side="bottom", pady=12)
-
-# Main loop
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SpeechToTextApp(root)
+    root.mainloop()
