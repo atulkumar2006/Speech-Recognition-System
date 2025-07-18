@@ -1,8 +1,5 @@
-tk
-torch
 transformers
+torch
+torchaudio
 librosa
 soundfile
-numpy
-scipy
-pydub
